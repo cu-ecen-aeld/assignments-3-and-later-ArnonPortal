@@ -14,9 +14,10 @@
 */
 void test_validate_my_username()
 {
-    /**
-     * TODO: Replace the line below with your code here as described above to verify your /conf/username.txt 
-     * config file and my_username() functions are setup properly
-     */
-    TEST_ASSERT_TRUE_MESSAGE(false,"AESD students, please fix me!");
+    const char* harcoded_username = my_username();
+    char* username_in_file = malloc_username_from_conf_file();
+    int success = !strcmp(harcoded_username, username_in_file);
+
+    TEST_ASSERT_TRUE_MESSAGE(success,"Usernames are not equal");
+    free(username_in_file);
 }
