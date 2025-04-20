@@ -1,4 +1,6 @@
 #include "systemcalls.h"
+#include <fcntl.h>
+#include <unistd.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,7 +18,11 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
+    int res = system(cmd);
+    if (res == -1){
+        perror("cmd failed");
+        return false;
+    }
     return true;
 }
 
@@ -48,20 +54,28 @@ bool do_exec(int count, ...)
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
     command[count] = command[count];
-
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
-
     va_end(args);
 
-    return true;
+    int pid = fork();
+    if (pid == -1) {
+        // fork failed
+        perror("fork");
+        return false;
+    } else if (pid == 0) {
+        // Child process
+        execv(command[0], command);
+        // If execv returns, there was an error
+        perror("execv");
+        exit(1);
+    } else {
+        // Parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            perror("waitpid");
+            return false;
+        }
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
 }
 
 /**
@@ -84,16 +98,39 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     // and may be removed
     command[count] = command[count];
 
-
-/*
- * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
- *   redirect standard out to a file specified by outputfile.
- *   The rest of the behaviour is same as do_exec()
- *
-*/
-
     va_end(args);
 
-    return true;
+    int pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        return false;
+    } else if (pid == 0) {
+        // In child process: redirect stdout and stderr to output file
+        int fd = open(outputfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        if (fd < 0) {
+            perror("open");
+            exit(1);
+        }
+
+        if (dup2(fd, STDOUT_FILENO) == -1 || dup2(fd, STDERR_FILENO) == -1) {
+            perror("dup2");
+            close(fd);
+            exit(1);
+        }
+
+        close(fd);
+        execv(command[0], command);
+        // If execv returns, there was an error
+        perror("execv");
+        exit(1);
+    } else {
+        // In parent process: wait for child to finish
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            perror("waitpid");
+            return false;
+        }
+
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
 }
